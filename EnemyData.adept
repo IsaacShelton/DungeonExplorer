@@ -1,0 +1,88 @@
+
+import 'main.adept'
+
+enum EnemyKind (NONE, ZOMBIE, GHOST, BIMP, CYCLOPS, HEAD, BULLY, PRINCESS, JETPACK, OLD_MAN, WHITE_RAT, SCIENTIST, MAGICIAN, MECHANIC)
+enum EnemyBehavior (NONE, SEEK, REQUEST)
+
+struct EnemyData (
+    kind EnemyKind,
+    idle CaptTexture,
+    attack CaptTexture,
+    duration int,
+    cooldown int,
+    speed float,
+    can_use_weapons bool,
+    bleeds bool,
+    health float,
+    damage float,
+    behavior EnemyBehavior,
+    blood_y_offset float,
+    extra ptr
+)
+
+func enemyData(kind EnemyKind, idle, attack CaptTexture, duration, cooldown int, speed float, can_use_weapons bool, bleeds bool, health float, damage float,
+        behavior EnemyBehavior, blood_y_offset float, extra ptr) EnemyData {
+    ed EnemyData
+    ed.kind = kind
+    ed.idle = idle
+    ed.attack = attack
+    ed.duration = duration
+    ed.cooldown = cooldown
+    ed.speed = speed
+    ed.can_use_weapons = can_use_weapons
+    ed.bleeds = bleeds
+    ed.health = health
+    ed.damage = damage
+    ed.behavior = behavior
+    ed.blood_y_offset = blood_y_offset
+    ed.extra = extra
+    return ed
+}
+
+enemy_data <EnemyData> List
+
+func initEnemyData {
+    enemy_data.clear()
+    enemy_data.add(enemyData(EnemyKind::ZOMBIE, textures.zombie, textures.zombie_attack, 10, 60, 1.0f, true, true, 10.0f, 5.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::GHOST, textures.ghost, textures.ghost_attack, 60, 60, 0.5f, false, true, 2.0f, 8.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::BIMP, textures.bimp, textures.bimp_attack, 15, 60, 1.1f, false, true, 20.0f, 8.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::CYCLOPS, textures.cyclops, textures.cyclops, 60, 60, 1.0f, true, true, 15.0f, 0.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::HEAD, textures.head, textures.head, 5, 30, 1.2f, true, true, 2.0f, 2.0f, EnemyBehavior::SEEK, 6.0f, null))
+    enemy_data.add(enemyData(EnemyKind::BULLY, textures.bully, textures.bully_attack, 15, 30, 1.1f, false, true, 12.0f, 6.0f, EnemyBehavior::SEEK, -3.0f, null))
+    enemy_data.add(enemyData(EnemyKind::PRINCESS, textures.princess, textures.princess_attack, 10, 20, 1.2f, false, true, 9.0f, 4.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::JETPACK, textures.jetpack, textures.jetpack_attack, 8, 60, 1.4f, false, true, 5.0f, 10.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::OLD_MAN, textures.head, textures.invalid, 0, 0, 0.0f, false, false, 10000000.0f, 0.0f, EnemyBehavior::REQUEST, 0.0f,
+        'I am looking for a flower...\nCan you help me?'))
+    enemy_data.add(enemyData(EnemyKind::WHITE_RAT, textures.white_rat, textures.white_rat_attack, 15, 30, 1.7f, false, true, 100.0f, 15.0f, EnemyBehavior::SEEK, 0.0f, null))
+    enemy_data.add(enemyData(EnemyKind::SCIENTIST, textures.scientist, textures.invalid, 0, 0, 0.0f, false, false, 10000000.0f, 0.0f, EnemyBehavior::REQUEST, 0.0f,
+        'I need the corpse of the white rat...\nCan you get it for me?'))
+    enemy_data.add(enemyData(EnemyKind::MAGICIAN, textures.magician, textures.invalid, 0, 0, 0.0f, false, false, 10000000.0f, 0.0f, EnemyBehavior::REQUEST, 0.0f,
+        'There are evil magic users around...\nCan you kill them for me?'))
+    enemy_data.add(enemyData(EnemyKind::MECHANIC, textures.mechanic, textures.invalid, 0, 0, 0.0f, false, false, 10000000.0f, 0.0f, EnemyBehavior::REQUEST, 0.0f,
+        'I am trying to make some weapons...\nCan you protect me in the mean time?'))
+}
+
+func randomEnemyKind EnemyKind {
+    return cast EnemyKind (rand() % 8 + 1)
+}
+
+func semiRandomEnemyKind(xp usize) EnemyKind {
+    if xp < 5, return cast EnemyKind (1)
+    if xp < 10, return cast EnemyKind (rand() % 2 + 1)
+    if xp < 20, return cast EnemyKind (rand() % 3 + 1)
+    if xp < 30, return cast EnemyKind (rand() % 4 + 1)
+    if xp < 40, return cast EnemyKind (rand() % 5 + 1)
+    if xp < 50, return cast EnemyKind (rand() % 6 + 1)
+    if xp < 60, return cast EnemyKind (rand() % 7 + 1)
+    return cast EnemyKind (rand() % 8 + 1)
+}
+
+func findEnemyData(kind EnemyKind) *EnemyData {
+    each EnemyData in enemy_data {
+        if it.kind == kind, return &it
+    }
+    
+    printf('INTERNAL ERROR: enemy_data doesn\'t contain data for enemy kind %d\n', kind as int)
+    exit(1)
+    return null
+}

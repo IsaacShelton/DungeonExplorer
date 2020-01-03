@@ -1,0 +1,17 @@
+
+import 'main.adept'
+
+func generateStartingRoom *Room {
+    gamedata.rooms.add() // Assume success
+    
+    new_room *Room = gamedata.rooms.items at (gamedata.rooms.length - 1)
+    new_room.x = 0
+    new_room.y = 0
+    
+    generateRoomExits(new_room)
+    
+    new_room.has_fountain = true
+    new_room.room_objective = RoomObjectiveKind::NONE
+    new_room.adventure_objective = AdventureObjectiveKind::NONE
+    return new_room
+}

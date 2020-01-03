@@ -1,0 +1,171 @@
+
+import 'main.adept'
+
+struct Player (
+    id int,
+    x, y float,
+    weapon Weapon,
+    direction int,
+    target_x, target_y float,
+    old_angle, movement_angle float,
+    moving bool,
+    health float,
+    blinker int,
+    a_lock bool,
+    b_lock bool,
+    d_lock bool,
+    speed_modifier float,
+    in_door bool
+) {
+    func attacking bool =
+        this.weapon.kind != WeaponKind::NONE && this.weapon.duration > 0
+    
+    func dead bool = this.health <= 0.0f
+    
+    func draw {
+        if this.dead() || this.in_door, return
+        
+        if this.weapon.kind != WeaponKind::NONE && !this.weapon.data.in_front {
+            this.weapon.draw(this.x, this.y, this.direction)
+        }
+        
+        if this.blinker == 0 || this.blinker % 10 < 5,
+            render(this.direction >= 0 ? &gamedata.model : &gamedata.model_r, this.getTexture(), this.x - 16.0f, this.y - 16.0f, getDepthFromY(this.y + 32.0f))
+        
+        if this.weapon.kind != WeaponKind::NONE && this.weapon.data.in_front {
+            this.weapon.draw(this.x, this.y, this.direction)
+        }
+    }
+    
+    func drawAttackArea {
+        if this.dead() || this.in_door, return
+        
+        if this.weapon.kind == WeaponKind::NONE, return
+        captDrawTextureUsingModel(gamedata.model, textures.target, this.target_x - 24.0f - 1.0f * 64.0f / 24.0f, this.target_y - 24.0f - 1.0f * 64.0f / 24.0f)
+    }
+    
+    func getTexture CaptTexture {
+        // NOTE: Assumes that player IDs correspond to player textures in Textures
+        return this.id < 0 || this.id > 6 ? textures.invalid : (&textures as *CaptTexture)[this.id]
+    }
+    
+    func attack {
+        if this.dead() || this.in_door, return
+        
+        if this.weapon.attack() {
+            each Enemy in gamedata.enemies {
+                it.getCenter(undef e_cx float, undef e_cy float)
+                x_diff float = e_cx - this.target_x
+                y_diff float = e_cy - this.target_y
+                
+                if sqrtf(x_diff * x_diff + y_diff * y_diff) < 24.0f {
+                    ek EnemyKind = it.kind
+                    if ek == EnemyKind::OLD_MAN || ek == EnemyKind::SCIENTIST || ek == EnemyKind::MAGICIAN || ek == EnemyKind::MECHANIC,
+                        continue
+                    
+                    it.health -= this.weapon.data.damage
+                    if it.data.bleeds, bleed(e_cx, e_cy + it.data.blood_y_offset)
+                    
+                    if this.weapon.kind == WeaponKind::LIGHTSTICK {
+                        it.speed_modifier = 0.5f
+                    }
+                    
+                    if it.health <= 0.0f {
+                        if it.weapon.kind != WeaponKind::NONE,
+                            gamedata.dropped_weapons.add(droppedWeapon(it.weapon.kind, it.x - 16.0f, it.y - 16.0f))
+                        gamedata.objectiveEventOnKill(it.kind)
+                        gamedata.enemies.remove(idx--)
+                    }
+                }
+            }
+        }
+    }
+    
+    func update {
+        this.weapon.update()
+        if this.blinker > 0, this.blinker--
+        
+        if this.speed_modifier < 1.0f, this.speed_modifier += 0.01f
+        if this.speed_modifier > 1.0f, this.speed_modifier -= 0.01f
+    }
+    
+    func getCenter(out x, y *float) {
+        *x = this.x + 32.0f
+        *y = this.y + 32.0f
+    }
+    
+    func changeTargetArea(angle float) {
+        this.getCenter(undef cx float, undef cy float)
+        this.target_x = cx + 32.0f * cos(angle)
+        this.target_y = cy + 32.0f * sin(angle)
+    }
+    
+    func blink {
+        this.blinker = 60
+    }
+    
+    func dropWeapon {
+        if this.weapon.kind == WeaponKind::NONE || this.dead() || this.in_door, return
+        gamedata.dropped_weapons.add(droppedWeapon(this.weapon.kind, this.x - 16.0f, this.y - 16.0f, this.id))
+        this.weapon.kind = WeaponKind::NONE
+    }
+    
+    func heal {
+        this.health = 100.0f
+    }
+}
+
+func player(id int, x, y float) Player {
+    p Player
+    p.id = id
+    p.x = x
+    p.y = y
+    p.direction = 1
+    p.changeTargetArea(0.0f)
+    p.old_angle = 0.0f
+    p.movement_angle = 0.0f
+    p.moving = false
+    p.health = 100.0f
+    p.blinker = 0
+    p.a_lock = false
+    p.b_lock = false
+    p.d_lock = false
+    p.speed_modifier = 1.0f
+    p.in_door = false
+    return p
+}
+
+func contains(this *<Player> List, id int, ignore_dead bool) bool {
+    return this.find(id, ignore_dead) != -1
+}
+
+func find(this *<Player> List, id int, ignore_dead bool) int {
+    each Player in *this, if !(ignore_dead && it.dead()) && it.id == id, return idx
+    return -1
+}
+
+func addPlayer(this *GameData, id int) {
+    this.players.add(player(id, captViewWidth() / 2.0f - 16.0f, captViewHeight() / 2.0f + (this.show_fountain ? 16.0f : -16.0f)))
+}
+
+func findNearestPlayer(x, y float, out distance_to_player *float) *Player {
+    // NOTE: May return null
+    min_distance float = -1.0f
+    player *Player = null
+    
+    each Player in gamedata.players {
+        if it.dead() || it.in_door, continue
+        
+        it.getCenter(undef p_cx float, undef p_cy float)
+        x_diff float = x - p_cx
+        y_diff float = y - p_cy
+        distance float = sqrtf(x_diff * x_diff + y_diff * y_diff)
+        if min_distance < 0.0f || distance < min_distance {
+            min_distance = distance
+            player = &it
+        }
+    }
+    
+    if distance_to_player, *distance_to_player = min_distance
+    return player
+}

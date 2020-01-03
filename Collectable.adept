@@ -1,0 +1,16 @@
+
+import 'main.adept'
+
+struct Collectable (texture CaptTexture, x, y float) {
+    func draw {
+        captDrawTextureUsingModel(gamedata.model, this.texture, this.x - 32.0f, this.y - 32.0f)
+    }
+}
+
+func collectable(texture CaptTexture, x, y float) Collectable {
+    c Collectable
+    c.texture = texture
+    c.x = x
+    c.y = y
+    return c
+}

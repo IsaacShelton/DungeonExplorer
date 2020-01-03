@@ -1,0 +1,37 @@
+
+import 'main.adept'
+
+packed struct Crack (enemy_kind EnemyKind, x, y float, last double, spawn_rate double) {
+    func update {
+        if this.last + this.spawn_rate < glfwGetTime() && rand() % 50 == 0 {
+            spawnEnemy(gamedata.adventure_objective.kind == AdventureObjectiveKind::MAGICIAN ? EnemyKind::BIMP : this.enemy_kind, this.x, this.y)
+            this.last = glfwGetTime()
+        }
+    }
+    
+    func draw {
+        captDrawTextureUsingModel(gamedata.floor_model, textures.crack, this.x, this.y)
+    }
+}
+
+func crack(enemy_kind EnemyKind, x, y float) Crack {
+    c Crack
+    c.enemy_kind = enemy_kind
+    c.x = x
+    c.y = y
+    c.last = 0.0
+    c.spawn_rate = max(0.1 * findEnemyData(enemy_kind).health as double, 1.0)
+    return c
+}
+
+func spawnEnemy(enemy_kind EnemyKind, x, y float) {
+    gamedata.enemies.add(enemy(enemy_kind, x, y, 1))
+    new_enemy *Enemy = gamedata.enemies.getPointer(gamedata.enemies.length - 1)
+    
+    if enemy_kind == EnemyKind::CYCLOPS {
+        new_enemy.weapon = weapon(rand() % 5 == 0 ? semiRandomWeaponKind(gamedata.getXp()) : WeaponKind::CLUB)
+        new_enemy.speed_modifier = 0.5f + cast float (rand() % 6) * 0.1f
+    } else if rand() % 50 == 0 && new_enemy.data.can_use_weapons {
+        new_enemy.weapon = weapon(semiRandomWeaponKind(gamedata.getXp()))
+    }
+}

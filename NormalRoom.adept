@@ -1,0 +1,44 @@
+
+import 'main.adept'
+
+func generateNormalRoom(to_direction RoomDirection) *Room {
+    new_room *Room = generateBlankRoom(to_direction)
+    
+    generateRoomExits(new_room)
+    generateRoomEntrances(new_room, to_direction)
+    generateRoomCracks(new_room)
+    return new_room
+}
+
+func generateBlankRoom(to_direction RoomDirection) *Room {
+    gamedata.rooms.add() // Assume success
+    new_room *Room = gamedata.rooms.items at (gamedata.rooms.length - 1)
+    new_room.x = gamedata.room_x + xChange(to_direction)
+    new_room.y = gamedata.room_y + yChange(to_direction)
+    new_room.has_fountain = false
+    new_room.room_objective = RoomObjectiveKind::NONE
+    new_room.adventure_objective = AdventureObjectiveKind::NONE
+    return new_room
+}
+
+func generateRoomExits(new_room *Room) {
+    // Add northern door, western door
+    new_room.doors.add(door(48.0f * cast float (rand() % 10 + 3), 0.0f, RoomDirection::NORTH))
+    new_room.doors.add(door(0.0f, 48.0f * 5.0f, RoomDirection::WEST))
+}
+
+func generateRoomEntrances(new_room *Room, to_direction RoomDirection) {
+    // Entrance to north from south
+    new_room.doors.add(door(48.0f * cast float (rand() % 10 + 3), 48.0f * 9.0f, RoomDirection::SOUTH))
+    // Entrance to west from east
+    new_room.doors.add(door(48.0f * 17.0f, 48.0f * cast float (rand() % 8 + 1), RoomDirection::EAST))
+}
+
+func generateRoomCracks(new_room *Room) {
+    xp usize = gamedata.getXp()
+    target usize = (0.5 * sqrt(xp as double)) as usize
+    count usize = rand() % 2 + target + 1
+    repeat count {
+        new_room.cracks.add(crack(semiRandomEnemyKind(xp), cast float(rand() % 640) + 128.0f, cast float(rand() % 256) + 128.0f))
+    }
+}

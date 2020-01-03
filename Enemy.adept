@@ -1,0 +1,202 @@
+
+import 'main.adept'
+
+packed struct Enemy (kind EnemyKind, x, y float, direction int, weapon Weapon, duration int, data *EnemyData, health float, speed_modifier float) {
+    func attack(player *Player) {
+        if this.kind == EnemyKind::NONE || (player.blinker > 0 && this.weapon.kind != WeaponKind::CHAINSAW), return
+        
+        if this.weapon.kind != WeaponKind::NONE {
+            if this.weapon.attack() {
+                player.health -= this.weapon.data.damage
+                player.blink()
+            }
+        } else if this.duration == 0 {
+            this.duration = this.data.duration
+            player.health -= this.data.damage
+            player.blink()
+        }
+    }
+    
+    func update {
+        if this.kind == EnemyKind::NONE, return
+        
+        if this.duration < 0 {
+            // Update cooldown
+            this.duration++
+        }
+        
+        if this.duration == 1 {
+            // Set cooldown
+            this.duration = -1 * this.data.cooldown
+        }
+        
+        if this.duration > 0 {
+            // Update duration
+            this.duration--
+        }
+        
+        switch this.data.behavior {
+        case EnemyBehavior::SEEK
+            this.getCenter(undef cx float, undef cy float)
+            nearest_player *Player = findNearestPlayer(cx, cy, undef distance float)
+            
+            if nearest_player {
+                angle_to_player float = atan2(nearest_player.y - this.y, nearest_player.x - this.x)
+                dx float = this.data.speed * this.speed_modifier * cos(angle_to_player)
+                dy float = this.data.speed * this.speed_modifier * sin(angle_to_player)
+                this.x += dx
+                this.y += dy
+                unless this.attacking(), this.direction = dx > 0.1f ? 1 : dx < 0.1f ? -1 : this.direction
+                
+                if distance < 24.0f {
+                    this.attack(nearest_player)
+                    
+                    if this.weapon.kind == WeaponKind::LIGHTSTICK {
+                        nearest_player.speed_modifier = 0.7f
+                    }
+                }
+            }
+            
+            if this.speed_modifier < 1.0f, this.speed_modifier += 0.005f
+            if this.speed_modifier > 1.0f, this.speed_modifier -= 0.005f
+            this.weapon.update()
+            this.tryPickupWeapon()
+        case EnemyBehavior::REQUEST
+            current_room *Room = gamedata.findCurrentRoom()
+            
+            this.getCenter(undef cx float, undef cy float)
+            nearest_player *Player = findNearestPlayer(cx, cy, undef distance float)
+            
+            if gamedata.adventure_objective.kind != AdventureObjectiveKind::NONE && gamedata.adventure_objective.kind == current_room.adventure_objective {
+                switch this.kind {
+                case EnemyKind::OLD_MAN
+                    if gamedata.adventure_objective.kind == AdventureObjectiveKind::FLOWER && gamedata.adventure_objective.counter > 0 {
+                        gamedata.adventure_objective.kind = AdventureObjectiveKind::NONE
+                        current_room.adventure_objective = AdventureObjectiveKind::NONE
+                        gamedata.message_string = stringConstant('Thanks for the help')
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::DAGGER, this.x - 64.0f - 16.0f, this.y - 16.0f))
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::DAGGER, this.x + 64.0f - 16.0f, this.y - 16.0f))
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::DAGGER, this.x - 16.0f, this.y - 64.0f - 16.0f))
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::DAGGER, this.x - 16.0f, this.y + 64.0f - 16.0f))
+                    }
+                case EnemyKind::SCIENTIST
+                    if gamedata.adventure_objective.kind == AdventureObjectiveKind::WHITE_RAT && gamedata.adventure_objective.counter > 0 {
+                        gamedata.adventure_objective.kind = AdventureObjectiveKind::NONE
+                        current_room.adventure_objective = AdventureObjectiveKind::NONE
+                        gamedata.message_string = stringConstant('Thanks for the help')
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::CLAW, this.x - 64.0f - 16.0f, this.y - 16.0f))
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::CLAW, this.x + 64.0f - 16.0f, this.y - 16.0f))
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::CLAW, this.x - 16.0f, this.y - 64.0f - 16.0f))
+                        gamedata.dropped_weapons.add(droppedWeapon(WeaponKind::CLAW, this.x - 16.0f, this.y + 64.0f - 16.0f))
+                    }
+                case EnemyKind::MAGICIAN
+                    if gamedata.adventure_objective.kind == AdventureObjectiveKind::MAGICIAN && gamedata.adventure_objective.counter >= 50 {
+                        gamedata.adventure_objective.kind = AdventureObjectiveKind::NONE
+                        current_room.adventure_objective = AdventureObjectiveKind::NONE
+                        gamedata.message_string = stringConstant('You have been healed of any wounds\n\nThanks for the help')
+                        each Player in gamedata.players, unless it.dead(), it.heal()
+                    }
+                case EnemyKind::MECHANIC
+                    if gamedata.adventure_objective.kind == AdventureObjectiveKind::MECHANIC {
+                        min_distance float = 1000.0f
+                        this.getCenter(undef m_cx float, undef m_cy float)
+                        
+                        each Enemy in gamedata.enemies {
+                            if it.kind == EnemyKind::MECHANIC, continue
+                            it.getCenter(undef e_cx float, undef e_cy float)
+                            x_diff float = m_cx - e_cx
+                            y_diff float = m_cy - e_cy
+                            distance float = sqrtf(x_diff * x_diff + y_diff * y_diff)
+                            if distance < min_distance, min_distance = distance
+                        }
+                        
+                        if min_distance < 24.0f {
+                            bleed(m_cx, m_cy)
+                            gamedata.adventure_objective.kind = AdventureObjectiveKind::NONE
+                            gamedata.message_string = "He is dead."
+                            each Enemy in gamedata.enemies, if it.kind == EnemyKind::MECHANIC, gamedata.enemies.remove(idx--)
+                        } else if gamedata.adventure_objective.timer >= 60 * 60 {
+                            gamedata.adventure_objective.kind = AdventureObjectiveKind::NONE
+                            current_room.adventure_objective = AdventureObjectiveKind::NONE
+                            gamedata.message_string = stringConstant('Thanks for the help\n\nHere are a few weapons can have')
+                            gamedata.dropped_weapons.add(droppedWeapon(randomWeaponKind(), this.x - 64.0f - 16.0f, this.y - 16.0f))
+                            gamedata.dropped_weapons.add(droppedWeapon(randomWeaponKind(), this.x + 64.0f - 16.0f, this.y - 16.0f))
+                            gamedata.dropped_weapons.add(droppedWeapon(randomWeaponKind(), this.x - 16.0f, this.y - 64.0f - 16.0f))
+                            gamedata.dropped_weapons.add(droppedWeapon(randomWeaponKind(), this.x - 16.0f, this.y + 64.0f - 16.0f))
+                        }
+                        
+                        return
+                    }
+                }
+            }
+            
+            if gamedata.adventure_objective.kind != AdventureObjectiveKind::NONE || current_room.adventure_objective == AdventureObjectiveKind::NONE,
+                return
+            
+            if nearest_player && distance < 64.0f && this.duration == 0 {
+                gamedata.recruitment_string = stringConstant(this.data.extra as *ubyte)
+                this.duration = -120
+            }
+        }
+    }
+    
+    func tryPickupWeapon {
+        unless this.data.can_use_weapons && this.weapon.kind == WeaponKind::NONE, return
+        this.getCenter(undef cx float, undef cy float)
+        
+        each DroppedWeapon in gamedata.dropped_weapons {
+            it.getCenter(undef dw_cx float, undef dw_cy float)
+            x_diff float = dw_cx - cx
+            y_diff float = dw_cy - cy
+            if sqrt(x_diff * x_diff + y_diff * y_diff) < 24.0f {
+                this.weapon = weapon(it.kind)
+                gamedata.dropped_weapons.remove(idx--)
+                return
+            }
+        }
+    }
+    
+    func draw {
+        if this.kind == EnemyKind::NONE, return
+        
+        if this.weapon.kind != WeaponKind::NONE && !this.weapon.data.in_front {
+            this.weapon.draw(this.x, this.y, this.direction)
+        }
+        
+        render(this.direction >= 0 ? &gamedata.model : &gamedata.model_r, this.getTexture(), this.x - 16.0f, this.y - 16.0f, getDepthFromY(this.y + 32.0f))
+        
+        if this.weapon.kind != WeaponKind::NONE && this.weapon.data.in_front {
+            this.weapon.draw(this.x, this.y, this.direction)
+        }
+        
+        current_room *Room = gamedata.findCurrentRoom()
+        if current_room && this.kind == EnemyKind::OLD_MAN && gamedata.adventure_objective.kind == AdventureObjectiveKind::NONE && current_room.adventure_objective == AdventureObjectiveKind::NONE,
+            render(&gamedata.model, textures.flower, this.x - 16.0f + 4.0f, this.y - 16.0f - 13.5f, getDepthFromY(this.y + 32.0f))
+    }
+    
+    func getCenter(out x, y *float) {
+        *x = this.x + 32.0f
+        *y = this.y + 32.0f
+    }
+    
+    func getTexture CaptTexture {
+        return this.duration <= 0 ? this.data.idle : this.data.attack
+    }
+    
+    func attacking bool =
+        this.duration > 0 || (this.weapon.kind != WeaponKind::NONE && this.weapon.duration > 0)
+}
+
+func enemy(kind EnemyKind, x, y float, direction int) Enemy {
+    e Enemy
+    e.kind = kind
+    e.x = x
+    e.y = y
+    e.direction = direction
+    e.weapon.kind = WeaponKind::NONE
+    e.duration = 0
+    e.data = findEnemyData(kind)
+    e.health = e.data.health * gamedata.difficulty_modifier
+    e.speed_modifier = 1.0f
+    return e
+}

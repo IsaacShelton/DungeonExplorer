@@ -1,0 +1,36 @@
+
+import 'main.adept'
+
+func generateRoomObjectiveRoom(to_direction RoomDirection) *Room {
+    new_room *Room = null
+    
+    switch rand() % 3 {
+    case 0
+        // KILL_25_ZOMBIES/KILL_50_ZOMBIES/KILL_100_ZOMBIES
+        new_room = generateNormalRoom(to_direction)
+        
+        zombie_cracks usize = 0
+        each Crack in new_room.cracks, if it.enemy_kind == EnemyKind::ZOMBIE,
+            zombie_cracks++
+        
+        if zombie_cracks > 0 {
+            new_room.room_objective = zombie_cracks == 1 ? RoomObjectiveKind::KILL_25_ZOMBIES : (zombie_cracks == 2 ? RoomObjectiveKind::KILL_50_ZOMBIES : RoomObjectiveKind::KILL_100_ZOMBIES)
+        }
+        return new_room
+    case 1
+        // SURVIVE_30S
+        new_room = generateNormalRoom(to_direction)
+        new_room.room_objective = RoomObjectiveKind::SURVIVE_30S
+        return new_room
+    case 2
+        // CLEAR
+        new_room = generateBlankRoom(to_direction)
+        generateRoomExits(new_room)
+        generateRoomEntrances(new_room, to_direction)
+        new_room.room_objective = RoomObjectiveKind::CLEAR
+        return new_room
+    }
+    
+    printf('INTERNAL ERROR: generateRoomObjectiveRoom() switch out of bounds\n')
+    return generateNormalRoom(to_direction)
+}

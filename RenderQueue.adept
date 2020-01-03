@@ -1,0 +1,48 @@
+
+import 'main.adept'
+
+packed struct RenderEntry (model *CaptModel, texture CaptTexture, x, y, depth float, index usize)
+func renderEntry(model *CaptModel, texture CaptTexture, x, y, depth float, index usize) RenderEntry {
+    re RenderEntry
+    re.model = model
+    re.texture = texture
+    re.x = x
+    re.y = y
+    re.depth = depth
+    re.index = index
+    return re
+}
+
+struct RenderQueue (entries <RenderEntry> List) {
+    func reserve(count usize) {
+        this.entries.reserve(count)
+    }
+    
+    func render {
+        qsort(this.entries.items, this.entries.length, sizeof RenderEntry, func &compare_depth)
+        each RenderEntry in this.entries {
+            captDrawTextureUsingModel(*it.model, it.texture, it.x, it.y)
+        }
+        this.entries.clear()
+    }
+    
+    func add(model *CaptModel, texture CaptTexture, x, y, depth float) {
+        this.entries.add(renderEntry(model, texture, x, y, depth, this.entries.length))
+    }
+}
+
+func render(model *CaptModel, texture CaptTexture, x, y, depth float) {
+    gamedata.render_queue.add(model, texture, x, y, depth)
+}
+
+func compare_depth(a, b ptr) int {
+    // NOTE: Higher depth means higher on the list
+    af float = (a as *RenderEntry).depth
+    bf float = (b as *RenderEntry).depth
+    return af < bf ? 1 : af > bf ? -1 : (a as *RenderEntry).index as int - (b as *RenderEntry).index as int
+}
+
+func getDepthFromY(y float) float {
+    h float = captViewHeight()
+    return 1.0f - y / h
+}

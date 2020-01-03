@@ -1,0 +1,132 @@
+
+import 'main.adept'
+
+enum RoomObjectiveKind (NONE, KILL_25_ZOMBIES, KILL_50_ZOMBIES, KILL_100_ZOMBIES, SURVIVE_30S, CLEAR)
+enum AdventureObjectiveKind (NONE, FLOWER, WHITE_RAT, MAGICIAN, MECHANIC)
+
+struct RoomObjective (kind RoomObjectiveKind, timer int, counter int) {
+    func onUpdate {
+        if this.kind == RoomObjectiveKind::NONE, return
+        
+        if this.kind == RoomObjectiveKind::SURVIVE_30S {
+            this.timer++
+        }
+    }
+    
+    func onKill(enemy_kind EnemyKind) {
+        if this.kind == RoomObjectiveKind::NONE, return
+        
+        if enemy_kind == EnemyKind::ZOMBIE && (this.kind == RoomObjectiveKind::KILL_25_ZOMBIES || this.kind == RoomObjectiveKind::KILL_50_ZOMBIES || this.kind == RoomObjectiveKind::KILL_100_ZOMBIES) {
+            this.counter++
+        }
+    }
+    
+    func completed bool {
+        switch this.kind {
+        case RoomObjectiveKind::NONE, return false
+        case RoomObjectiveKind::KILL_25_ZOMBIES, return this.counter >= 25
+        case RoomObjectiveKind::KILL_50_ZOMBIES, return this.counter >= 50
+        case RoomObjectiveKind::KILL_100_ZOMBIES, return this.counter >= 100
+        case RoomObjectiveKind::SURVIVE_30S, return this.timer >= 31 * 60
+        case RoomObjectiveKind::CLEAR, return gamedata.enemies.length == 0
+        }
+        return false
+    }
+    
+    func string String {
+        switch this.kind {
+        case RoomObjectiveKind::KILL_25_ZOMBIES, return "Kill 25 Zombies - %/25" % this.counter
+        case RoomObjectiveKind::KILL_50_ZOMBIES, return "Kill 50 Zombies - %/50" % this.counter
+        case RoomObjectiveKind::KILL_100_ZOMBIES, return "Kill 100 Zombies - %/100" % this.counter
+        case RoomObjectiveKind::SURVIVE_30S, return "Survive for 30 Seconds - %/30" % (this.timer / 60)
+        case RoomObjectiveKind::CLEAR, return "Clear the Room - % Enemies Left" % (gamedata.enemies.length)
+        }
+        return ""
+    }
+}
+
+func roomObjective(kind RoomObjectiveKind) RoomObjective {
+    ro RoomObjective
+    ro.kind = kind
+    ro.timer = 0
+    ro.counter = 0
+    return ro
+}
+
+struct AdventureObjective (kind AdventureObjectiveKind, counter int, timer int) {
+    func onUpdate {
+        if this.kind == AdventureObjectiveKind::NONE, return
+        
+        switch this.kind {
+        case AdventureObjectiveKind::MECHANIC
+            this.timer++
+            
+            if rand() % 50 == 0 {
+                f_cx float = captViewWidth() / 2.0f
+                f_cy float = captViewHeight() / 2.0f
+                angle float = 2.0f * PI / 256.0f * cast float(rand() % 256)
+                spawnEnemy(EnemyKind::ZOMBIE, f_cx + cos(angle) * 256.0f - 16.0f, f_cy + sin(angle) * 128.0f - 16.0f)
+            }
+        }
+    }
+    
+    func onKill(enemy_kind EnemyKind) {
+        if this.kind == AdventureObjectiveKind::NONE, return
+        
+        switch this.kind {
+        case AdventureObjectiveKind::WHITE_RAT
+            if enemy_kind == EnemyKind::WHITE_RAT {
+                this.counter++
+                gamedata.message_string = "You got a corpse of the white rat"
+            }
+        case AdventureObjectiveKind::MAGICIAN
+            if enemy_kind == EnemyKind::BIMP {
+                this.counter++
+            }
+        }
+    }
+    
+    func completed bool {
+        switch this.kind {
+        case AdventureObjectiveKind::NONE, return false
+        case AdventureObjectiveKind::FLOWER, return false
+        case AdventureObjectiveKind::WHITE_RAT, return false
+        case AdventureObjectiveKind::MAGICIAN, return false
+        case AdventureObjectiveKind::MECHANIC, return false
+        }
+        return false
+    }
+    
+    func string String {
+        switch this.kind {
+        case AdventureObjectiveKind::FLOWER, return "Find the flower - %/1" % this.counter
+        case AdventureObjectiveKind::WHITE_RAT, return "Obtain white rat corpse - %/1" % this.counter
+        case AdventureObjectiveKind::MAGICIAN, return "Kill 50 evil magic users - %/50" % this.counter
+        case AdventureObjectiveKind::MECHANIC, return "Protect him for 60 seconds - %/60" % (this.timer / 60)
+        }
+        return ""
+    }
+}
+
+func adventureObjective (kind AdventureObjectiveKind) AdventureObjective {
+    ao AdventureObjective
+    ao.kind = kind
+    ao.counter = 0
+    ao.timer = 0
+    return ao
+}
+
+func objectiveEventOnKill(this *GameData, enemy_kind EnemyKind) {
+    this.room_objective.onKill(enemy_kind)
+    this.adventure_objective.onKill(enemy_kind)
+}
+
+func objectiveEventOnUpdate(this *GameData) {
+    this.room_objective.onUpdate()
+    this.adventure_objective.onUpdate()
+}
+
+func takeOnAdventureObjective {
+    current_room *Room = gamedata.findCurrentRoom()
+    gamedata.adventure_objective = adventureObjective(current_room.adventure_objective)
+}

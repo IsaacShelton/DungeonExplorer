@@ -1,0 +1,202 @@
+
+import 'main.adept'
+
+enum RoomDirection (NONE, NORTH, SOUTH, EAST, WEST)
+
+packed struct Room (
+    x, y int,
+    cracks <Crack> List,
+    doors <Door> List,
+    has_fountain bool,
+    room_objective RoomObjectiveKind,
+    adventure_objective AdventureObjectiveKind
+)
+
+func generateRoom(this *GameData, direction RoomDirection) *Room {
+    if direction == RoomDirection::NONE {
+        // Starting room
+        return generateStartingRoom()
+    }
+    
+    if this.adventure_objective.kind == AdventureObjectiveKind::NONE && rand() % 15 /*2*/ == 0 {
+        // New adventure objective
+        return generateAdventureObjectiveRoom(direction)
+    }
+    
+    if rand() % 5 == 0 {
+        // New room objective
+        return generateRoomObjectiveRoom(direction)
+    }
+    
+    return generateNormalRoom(direction)
+}
+
+func nextRoom(this *GameData, direction RoomDirection) {
+    this.loadRoom(this.getRoom(direction), direction)
+}
+
+func getRoom(this *GameData, direction RoomDirection) *Room {
+    rx int = this.room_x + xChange(direction)
+    ry int = this.room_y + yChange(direction)
+    
+    each Room in this.rooms {
+        if it.x == rx && it.y == ry, return &it
+    }
+    
+    return this.generateRoom(direction)
+}
+
+func findRoom(this *GameData, direction RoomDirection) *Room {
+    // NOTE: May return null
+    return gamedata.findRoom(this.room_x + xChange(direction), this.room_y + yChange(direction))
+}
+
+func findRoom(this *GameData, rx, ry int) *Room {
+    // NOTE: May return null
+    each Room in this.rooms, if it.x == rx && it.y == ry, return &it
+    return null
+}
+
+func findCurrentRoom(this *GameData) *Room {
+    return this.findRoom(this.room_x, this.room_y)
+}
+
+func loadRoom(this *GameData, room *Room, to_direction RoomDirection) {
+    this.dropped_weapons.clear()
+    this.enemies.clear()
+    this.cracks.clear()
+    this.blood.clear()
+    this.doors.clear()
+    
+    entrance_x, entrance_y float
+    
+    switch to_direction {
+    case RoomDirection::NONE
+        entrance_x = captViewWidth() / 2.0f - 16.0f
+        entrance_y = captViewHeight() - 64.0f
+    case RoomDirection::NORTH
+        entrance_x = captViewWidth() / 2.0f - 16.0f // default x
+        entrance_y = captViewHeight() - 64.0f
+        
+        each Door in room.doors, if it.direction == opposite(to_direction) {
+            entrance_x = it.x + 8.0f
+            break
+        }
+    case RoomDirection::SOUTH
+        entrance_x = captViewWidth() / 2.0f - 16.0f // default x
+        entrance_y = 32.0f
+        
+        each Door in room.doors, if it.direction == opposite(to_direction) {
+            entrance_x = it.x + 8.0f
+            break
+        }
+    case RoomDirection::EAST
+        entrance_x = 48.0f
+        entrance_y = captViewHeight() / 2.0f - 16.0f // default y
+        
+        each Door in room.doors, if it.direction == opposite(to_direction) {
+            entrance_y = it.y + 8.0f
+            break
+        }
+    case RoomDirection::WEST
+        entrance_x = captViewWidth() - 48.0f - 32.0f
+        entrance_y = captViewHeight() / 2.0f - 16.0f // default y
+        
+        each Door in room.doors, if it.direction == opposite(to_direction) {
+            entrance_y = it.y + 8.0f
+            break
+        }
+    }
+    
+    each Player in this.players {
+        it.x = entrance_x
+        it.y = entrance_y
+        it.changeTargetArea(it.old_angle)
+        it.in_door = false
+    }
+    
+    // NOTE: <$T> List __assign__ not supported by compiler yet
+    /*
+    this.doors = room.doors.copy()
+    this.cracks = room.cracks.copy()
+    */
+    
+    // HACK: Manually pass ownership of copied lists
+    this.doors.__defer__()
+    this.cracks.__defer__()
+    this.doors = POD room.doors.copy()
+    this.cracks = POD room.cracks.copy()
+    this.doors.ownership = Ownership::OWN
+    this.cracks.ownership = Ownership::OWN
+    each Door in this.doors, it.count = 0
+    
+    this.room_x = room.x
+    this.room_y = room.y
+    this.show_fountain = room.has_fountain
+    this.room_objective = roomObjective(room.room_objective)
+    
+    if this.room_objective.kind == RoomObjectiveKind::CLEAR {
+        xp usize = gamedata.getXp()
+        target usize = (0.5 * sqrt(xp as double)) as usize
+        count usize = rand() % 2 + target * 2 + 1
+        repeat count {
+            spawnEnemy(semiRandomEnemyKind(xp), cast float(rand() % 384) + 256.0f, cast float(rand() % 128) + 256.0f)
+        }
+    }
+    
+    if this.adventure_objective.kind == AdventureObjectiveKind::NONE || this.adventure_objective.kind == room.adventure_objective, switch room.adventure_objective {
+    case AdventureObjectiveKind::FLOWER
+        this.enemies.add(enemy(EnemyKind::OLD_MAN, captViewWidth() / 2.0f - 32.0f, captViewHeight() / 2.0f - 32.0f, 1))
+    case AdventureObjectiveKind::WHITE_RAT
+        this.enemies.add(enemy(EnemyKind::SCIENTIST, captViewWidth() / 2.0f - 32.0f, captViewHeight() / 2.0f - 32.0f, 1))
+    case AdventureObjectiveKind::MAGICIAN
+        this.enemies.add(enemy(EnemyKind::MAGICIAN, captViewWidth() / 2.0f - 32.0f, captViewHeight() / 2.0f - 32.0f, 1))
+    case AdventureObjectiveKind::MECHANIC
+        this.enemies.add(enemy(EnemyKind::MECHANIC, captViewWidth() / 2.0f - 32.0f, captViewHeight() / 2.0f - 32.0f, 1))
+    }
+    
+    this.has_collectable = false
+    if this.adventure_objective.kind == AdventureObjectiveKind::FLOWER && gamedata.adventure_objective.counter == 0 && (rand() % 10 == 4) {
+        this.collectable = collectable(textures.flower, cast float(rand() % 640) + 128.0f, cast float(rand() % 256) + 128.0f)
+        this.has_collectable = true
+    }
+    
+    if this.adventure_objective.kind == AdventureObjectiveKind::WHITE_RAT && gamedata.adventure_objective.counter == 0 && (rand() % 10 == 4) {
+        this.enemies.add(enemy(EnemyKind::WHITE_RAT, cast float(rand() % 640) + 128.0f, cast float(rand() % 256) + 128.0f, 1))
+    }
+}
+
+// Possible missions:
+// flower
+// fix broken vase
+// unlock door
+// kill the white rat
+// escort the kid to his parents
+// defeat the run away boss
+
+
+func xChange(direction RoomDirection) int {
+    switch direction {
+    case RoomDirection::EAST, return 1
+    case RoomDirection::WEST, return -1
+    }
+    return 0
+}
+
+func yChange(direction RoomDirection) int {
+    switch direction {
+    case RoomDirection::NORTH, return -1
+    case RoomDirection::SOUTH, return 1
+    }
+    return 0
+}
+
+func opposite(direction RoomDirection) RoomDirection {
+    switch direction {
+    case RoomDirection::NORTH, return RoomDirection::SOUTH
+    case RoomDirection::SOUTH, return RoomDirection::NORTH
+    case RoomDirection::EAST,  return RoomDirection::WEST
+    case RoomDirection::WEST,  return RoomDirection::EAST
+    }
+    return RoomDirection::NONE
+}

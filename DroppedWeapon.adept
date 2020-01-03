@@ -1,0 +1,37 @@
+
+import 'main.adept'
+
+packed struct DroppedWeapon (kind WeaponKind, x, y float, x_balance float, texture CaptTexture, by_player_id int, when double, persistent bool) {
+    func draw {
+        unless !this.persistent && this.when + 29.0 < glfwGetTime() && (10.0 * glfwGetTime()) as int % 2 == 0,
+            captDrawTextureUsingModel(gamedata.model, this.texture, this.x + 64.0f / 24.0f * this.x_balance, this.y)
+    }
+    
+    func getCenter(out x, y *float) {
+        *x = this.x + 48.0f
+        *y = this.y + 48.0f
+    }
+    
+    func canByPickedUp(maybe_negative_player_id int) bool {
+        // 'maybe_negative_player_id' can be negative to indicate non-player
+        return maybe_negative_player_id < 0 || maybe_negative_player_id != this.by_player_id || glfwGetTime() > this.when + 1.0f
+    }
+}
+
+func droppedWeapon(kind WeaponKind, x, y float) DroppedWeapon {
+    return droppedWeapon(kind, x, y, -1)
+}
+
+func droppedWeapon(kind WeaponKind, x, y float, by_player_id int) DroppedWeapon {
+    info *WeaponData = findWeaponData(kind)
+    d DroppedWeapon
+    d.kind = kind
+    d.x = x
+    d.y = y
+    d.x_balance = info.x_balance
+    d.texture = info.idle
+    d.by_player_id = by_player_id
+    d.when = glfwGetTime()
+    d.persistent = false
+    return d
+}

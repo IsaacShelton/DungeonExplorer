@@ -1,0 +1,37 @@
+
+import 'main.adept'
+
+func copy(this *<$T> List) <$T> List {
+    // Copy items of list into another list
+    // NOTE: Items must be plain data
+    clone POD <$T> List
+    clone.items = new $T * this.length
+    clone.length = this.length
+    clone.capacity = this.length
+    clone.ownership = Ownership::GIVEN
+    memcpy(clone.items, this.items, sizeof $T * this.length)
+    return clone
+}
+
+func longestLength(string String) usize {
+    max usize = 0
+    count usize = 0
+    
+    each ubyte in [string.array, string.length] {
+        if it == '\n'ub {
+            if count > max, max = count
+            count = 0
+        } else {
+            count++
+        }
+    }
+    
+    if count > max, max = count
+    return max
+}
+
+func count(string String, character ubyte) usize {
+    count usize = 0
+    each ubyte in [string.array, string.length], if it == character, count++
+    return count
+}

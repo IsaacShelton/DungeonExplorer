@@ -1,0 +1,68 @@
+
+import 'main.adept'
+
+packed struct Door (x, y float, direction RoomDirection, count int) {
+    func update {
+        if gamedata.room_objective.kind != RoomObjectiveKind::NONE, return
+        if gamedata.adventure_objective.kind == AdventureObjectiveKind::MECHANIC, return
+        
+        each Player in gamedata.players {
+            if it.dead() || it.in_door, continue
+            
+            it.getCenter(undef p_cx float, undef p_cy float)
+            x_diff float = p_cx - (this.x + 24.0f)
+            y_diff float = p_cy - (this.y + 24.0f)
+            distance float = sqrtf(x_diff * x_diff + y_diff * y_diff)
+            if it.moving && distance < 64.0f && angleIsTowardsDirection(it.movement_angle, this.direction) {
+                this.count++
+                it.in_door = true
+                return
+            }
+        }
+    }
+    
+    func goThrough {
+        gamedata.nextRoom(this.direction)
+    }
+    
+    func getTexture CaptTexture {
+        switch this.direction {
+        case RoomDirection::NONE,  return textures.door1_n
+        case RoomDirection::NORTH, return textures.door1_n
+        case RoomDirection::SOUTH, return textures.door1_n // Don't use door1_s texture
+        case RoomDirection::EAST,  return textures.door1_e
+        case RoomDirection::WEST,  return textures.door1_w
+        }
+        return textures.invalid
+    }
+}
+
+func door(x, y float, direction RoomDirection) Door {
+    d Door
+    d.x = x
+    d.y = y
+    d.direction = direction
+    d.count = 0
+    return d
+}
+
+func angleIsTowardsDirection(angle_in_radians float, direction RoomDirection) bool {
+    while angle_in_radians < 2.0f * PI, angle_in_radians += 2.0f * PI
+    while angle_in_radians >= 2.0f * PI, angle_in_radians -= 2.0f * PI
+    angle_in_radians = 2.0f * PI - angle_in_radians
+    
+    switch direction {
+    case RoomDirection::NONE
+        return angle_in_radians > PI / 4.0f && angle_in_radians < 3.0f * PI / 4.0f
+    case RoomDirection::NORTH
+        return angle_in_radians > PI / 4.0f && angle_in_radians < 3.0f * PI / 4.0f
+    case RoomDirection::SOUTH
+        return angle_in_radians > 5.0f * PI / 4.0f && angle_in_radians < 7.0f * PI / 4.0f
+    case RoomDirection::EAST
+        return (angle_in_radians < PI / 4.0f && angle_in_radians >= 0.0f) || (angle_in_radians > 7.0f * PI / 4.0f && angle_in_radians <= 2.0f * PI)
+    case RoomDirection::WEST
+        return angle_in_radians > 3.0f * PI / 4.0f && angle_in_radians < 5.0f * PI / 4.0f
+    }
+    
+    return false
+}

@@ -1,0 +1,110 @@
+
+import 'main.adept'
+
+struct GameData (
+    model CaptModel,
+    model_r CaptModel,
+    floor_model CaptModel,
+    blood_model CaptModel,
+    render_queue RenderQueue,
+    players <Player> List,
+    dropped_weapons <DroppedWeapon> List,
+    enemies <Enemy> List,
+    blood <Blood> List,
+    cracks <Crack> List,
+    doors <Door> List,
+    rooms <Room> List,
+    difficulty_modifier float,
+    room_x, room_y int,
+    show_fountain bool,
+    adventure_objective AdventureObjective,
+    room_objective RoomObjective,
+    objective_text Text,
+    has_objective_text bool,
+    recruitment_string String,
+    recruitment_text Text,
+    has_recruitment_text bool,
+    message_string String,
+    message_text Text,
+    has_message_text bool,
+    collectable Collectable,
+    has_collectable bool,
+    door_count_text 4 Text,
+    door_count_has_text 4 bool,
+    enable_keyboard bool
+) {
+    func init {
+        initWeaponData()
+        initEnemyData()
+        this.difficulty_modifier = 1.0f
+        
+        this.model = captTemporaryModel(64.0f, 64.0f, false, false)
+        this.model_r = captTemporaryModel(64.0f, 64.0f, true, false)
+        this.floor_model = captTemporaryModel(48.0f, 48.0f, false, false)
+        this.blood_model = captTemporaryModel(16.0f, 16.0f, false, false)
+        
+        this.players.clear()
+        this.dropped_weapons.clear()
+        this.enemies.clear()
+        this.blood.clear()
+        this.cracks.clear()
+        this.doors.clear()
+        this.rooms.clear()
+        
+        this.room_x = 0
+        this.room_y = 0
+        
+        this.render_queue.reserve(2048uz)
+        this.players.reserve(8uz)
+        this.dropped_weapons.reserve(100uz)
+        this.enemies.reserve(256uz)
+        this.blood.reserve(1024uz)
+        this.cracks.reserve(16uz)
+        this.doors.reserve(6uz)
+        this.rooms.reserve(512uz)
+        
+        this.dropped_weapons.add(droppedWeapon(WeaponKind::SWORD,    266.0f + 128.0f * 0.0f, 128.0f))
+        this.dropped_weapons.add(droppedWeapon(WeaponKind::AXE,      266.0f + 128.0f * 1.0f, 128.0f))
+        this.dropped_weapons.add(droppedWeapon(WeaponKind::CHAINSAW, 266.0f + 128.0f * 2.0f, 128.0f))
+        this.dropped_weapons.add(droppedWeapon(WeaponKind::SWORD,    266.0f + 128.0f * 0.0f, 320.0f))
+        this.dropped_weapons.add(droppedWeapon(WeaponKind::AXE,      266.0f + 128.0f * 1.0f, 320.0f))
+        this.dropped_weapons.add(droppedWeapon(WeaponKind::CHAINSAW, 266.0f + 128.0f * 2.0f, 320.0f))
+        each DroppedWeapon in this.dropped_weapons, it.persistent = true
+        
+        this.doors.add(door(48.0f * 6.0f, 48.0f * 0.0f, RoomDirection::NONE))
+        this.show_fountain = false
+        this.adventure_objective.kind = AdventureObjectiveKind::NONE
+        this.room_objective.kind = RoomObjectiveKind::NONE
+        this.has_objective_text = false
+        this.has_recruitment_text = false
+        this.has_message_text = false
+        this.has_collectable = false
+        repeat 4, this.door_count_has_text[idx] = false
+        this.enable_keyboard = false
+    }
+    
+    func uninit {
+        weapon_data.clear()
+        enemy_data.clear()
+        
+        this.model.free()
+        this.model_r.free()
+        this.floor_model.free()
+        this.blood_model.free()
+        if this.has_objective_text, this.objective_text.destroy()
+        if this.has_recruitment_text, this.recruitment_text.destroy()
+        if this.has_message_text, this.message_text.destroy()
+        repeat 4, if this.door_count_has_text[idx], this.door_count_text[idx].destroy()
+        
+        this.has_objective_text = false
+        this.has_recruitment_text = false
+        this.has_message_text = false
+        repeat 4, this.door_count_has_text[idx] = false
+    }
+    
+    func getXp usize {
+        return this.rooms.length
+    }
+}
+
+gamedata GameData

@@ -1,0 +1,102 @@
+
+import 'main.adept'
+
+// NOTE: Textures can only contain members of type 'CaptTexture'
+// The name of each field must correspond to the name of the file
+// which holds the given texture
+
+packed struct Textures (
+    person_orange,
+    person_red,
+    person_blue,
+    person_yellow,
+    person_green,
+    person_purple,
+    person_cyan,
+    floor,
+    invalid,
+    sword,
+    sword_attack,
+    axe,
+    axe_attack,
+    chainsaw,
+    chainsaw_attack,
+    club,
+    club_attack,
+    spear,
+    spear_attack,
+    dagger,
+    dagger_attack,
+    ironfist,
+    ironfist_attack,
+    claw,
+    claw_attack,
+    lightstick,
+    lightstick_attack,
+    staff,
+    staff_attack,
+    trident,
+    trident_attack,
+    orb,
+    orb_attack,
+    grater,
+    grater_attack,
+    target,
+    ghost,
+    ghost_attack,
+    zombie,
+    zombie_attack,
+    bimp,
+    bimp_attack,
+    cyclops,
+    head,
+    bully,
+    bully_attack,
+    princess,
+    princess_attack,
+    jetpack,
+    jetpack_attack,
+    scientist,
+    white_rat,
+    white_rat_attack,
+    magician,
+    mechanic,
+    blood1,
+    blood2,
+    blood3,
+    blood4,
+    blood5,
+    blood6,
+    blood7,
+    blood8,
+    blood9,
+    wall1,
+    door1_n,
+    door1_s,
+    door1_e,
+    door1_w,
+    crack,
+    fountain,
+    fountain_flow,
+    black,
+    font,
+    flower CaptTexture
+) {
+    func load {
+        assetsFolder String = where() + "assets/"
+        info *AnyStructType = typeinfo Textures as *AnyStructType
+        
+        each *ubyte in [info.member_names, info.length] {
+            (this as *CaptTexture)[idx] = captTexture(assetsFolder + stringConstant(it) + ".png", false)
+        }
+    }
+    
+    func unload {
+        length usize = (typeinfo Textures as *AnyStructType).length
+        repeat length {
+            (this as *CaptTexture)[idx].destroy()
+        }
+    }
+}
+
+textures Textures

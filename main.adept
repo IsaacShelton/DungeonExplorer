@@ -1,0 +1,458 @@
+
+import '2.2/basics.adept'
+import '2.2/captain.adept'
+import '2.2/List.adept'
+
+import 'sys/cmath.adept'
+import 'sys/ctime.adept'
+import 'sys/cstdlib.adept'
+
+import 'util.adept'
+import 'where.adept'
+import 'Textures.adept'
+import 'GameData.adept'
+import 'Player.adept'
+import 'Weapon.adept'
+import 'WeaponData.adept'
+import 'Enemy.adept'
+import 'EnemyData.adept'
+import 'Blood.adept'
+import 'RenderQueue.adept'
+import 'Crack.adept'
+import 'Door.adept'
+import 'Room.adept'
+import 'Text.adept'
+import 'Objective.adept'
+import 'DroppedWeapon.adept'
+import 'NormalRoom.adept'
+import 'StartingRoom.adept'
+import 'RoomObjectiveRoom.adept'
+import 'AdventureObjectiveRoom.adept'
+import 'Collectable.adept'
+
+func main {
+    captOnSetup(func &onSetup)
+    captOnExit(func &onExit)
+    captOnStep(func &onStep)
+    captOnKey(func &onKey)
+    captOnDraw(func &onDraw)
+    captStart('Joystick Hostages Game', true)
+}
+
+func onSetup {
+    srand(time(null))
+    captHideCursor(true)
+    
+    textures.load()
+    gamedata.init()
+}
+
+func onExit {
+    gamedata.uninit()
+    textures.unload()
+}
+
+func onStep {
+    // Axes 0, 1
+    // Buttons 2, 3
+    // GLFW_JOYSTICK_1 == 0
+    
+    repeat 6 {
+        id int = idx + 1
+        joystick int = GLFW_JOYSTICK_1 + idx
+        index int = gamedata.players.find(id, false)
+        has bool = index != -1
+        
+        if glfwJoystickPresent(joystick) {
+            unless has {
+                gamedata.addPlayer(id)
+            }
+        } else if has {
+            gamedata.players.remove(index as usize)
+        }
+    }
+    
+    everyone_dead bool = true
+    each Player in gamedata.players {
+        everyone_dead = everyone_dead && it.dead()
+    }
+    
+    if everyone_dead {
+        each Player in gamedata.players {
+            a, b, c, d bool = undef
+            
+            if it.id == 0 {
+                a = captKeyHeld(GLFW_KEY_J)
+                b = captKeyHeld(GLFW_KEY_K)
+                c = captKeyHeld(GLFW_KEY_L)
+                d = captKeyHeld(GLFW_KEY_SEMICOLON)
+            } else {
+                joystick int = GLFW_JOYSTICK_1 + it.id - 1
+                buttons *ubyte = glfwGetJoystickButtons(joystick, undef buttons_count int)
+                a = buttons[3] == GLFW_PRESS
+                b = buttons[2] == GLFW_PRESS
+                c = buttons[1] == GLFW_PRESS
+                d = buttons[0] == GLFW_PRESS
+            }
+            
+            if a & !it.a_lock {
+                gamedata.uninit()
+                gamedata.init()
+            }
+            
+            it.a_lock = a
+            it.b_lock = b
+            it.d_lock = d
+        }
+        
+        // Because weapon despawn blinking is based on regular time, mark all the dropped weapons as persistent so they don't despawn
+        each dw DroppedWeapon in gamedata.dropped_weapons {
+            dw.persistent = true
+        }
+        
+        return
+    }
+    
+    unless gamedata.message_string == "" {
+        // Custom input for recruitment
+        each Player in gamedata.players {
+            if it.dead(), continue
+            
+            a, b, c, d bool = undef
+            
+            if it.id == 0 {
+                a = captKeyHeld(GLFW_KEY_J)
+                b = captKeyHeld(GLFW_KEY_K)
+                c = captKeyHeld(GLFW_KEY_L)
+                d = captKeyHeld(GLFW_KEY_SEMICOLON)
+            } else {
+                joystick int = GLFW_JOYSTICK_1 + it.id - 1
+                buttons *ubyte = glfwGetJoystickButtons(joystick, undef buttons_count int)
+                a = buttons[3] == GLFW_PRESS
+                b = buttons[2] == GLFW_PRESS
+                c = buttons[1] == GLFW_PRESS
+                d = buttons[0] == GLFW_PRESS
+            }
+            
+            if a && !it.a_lock, gamedata.message_string = ""
+            
+            it.a_lock = a
+            it.b_lock = b
+            it.d_lock = d
+        }
+        
+        return
+    }
+    
+    unless gamedata.recruitment_string == "" {
+        // Custom input for recruitment
+        each Player in gamedata.players {
+            if it.dead(), continue
+            
+            a, b, c, d bool = undef
+            
+            if it.id == 0 {
+                a = captKeyHeld(GLFW_KEY_J)
+                b = captKeyHeld(GLFW_KEY_K)
+                c = captKeyHeld(GLFW_KEY_L)
+                d = captKeyHeld(GLFW_KEY_SEMICOLON)
+            } else {
+                joystick int = GLFW_JOYSTICK_1 + it.id - 1
+                buttons *ubyte = glfwGetJoystickButtons(joystick, undef buttons_count int)
+                a = buttons[3] == GLFW_PRESS
+                b = buttons[2] == GLFW_PRESS
+                c = buttons[1] == GLFW_PRESS
+                d = buttons[0] == GLFW_PRESS
+            }
+            
+            if a && !it.a_lock, takeOnAdventureObjective(); gamedata.recruitment_string = ""
+            if b && !it.b_lock, gamedata.recruitment_string = ""
+            
+            it.a_lock = a
+            it.b_lock = b
+            it.d_lock = d
+        }
+        
+        return
+    }
+    
+    each Player in gamedata.players {
+        if it.dead(), continue
+        
+        stick_x, stick_y float = undef
+        a, b, c, d bool = undef
+            
+        if it.id == 0 {
+            a = captKeyHeld(GLFW_KEY_J)
+            b = captKeyHeld(GLFW_KEY_K)
+            c = captKeyHeld(GLFW_KEY_L)
+            d = captKeyHeld(GLFW_KEY_SEMICOLON)
+            stick_x = captKeyHeld(GLFW_KEY_A) as float * -1.0 + captKeyHeld(GLFW_KEY_D) as float
+            stick_y = captKeyHeld(GLFW_KEY_W) as float * -1.0 + captKeyHeld(GLFW_KEY_S) as float
+        } else {
+            joystick int = GLFW_JOYSTICK_1 + it.id - 1
+            axes *float = glfwGetJoystickAxes(joystick, undef axes_count int)
+            buttons *ubyte = glfwGetJoystickButtons(joystick, undef buttons_count int)
+            a = buttons[3] == GLFW_PRESS
+            b = buttons[2] == GLFW_PRESS
+            c = buttons[1] == GLFW_PRESS
+            d = buttons[0] == GLFW_PRESS
+            stick_x = axes[0]
+            stick_y = axes[1]
+        }
+        
+        it.moving = sqrtf(stick_x * stick_x + stick_y * stick_y) > 0.15f
+        
+        if it.moving {
+            angle float = atan2(stick_y, stick_x)
+            dx float = 3.0f * it.speed_modifier * cos(angle)
+            dy float = 3.0f * it.speed_modifier * sin(angle)
+            it.x += dx
+            it.y += dy
+            if it.x < 48.0f, it.x = 48.0f
+            if it.y < 32.0f, it.y = 32.0f
+            if it.x > captViewWidth() - 48.0f - 32.0f, it.x = captViewWidth() - 48.0f - 32.0f
+            if it.y > captViewHeight() - 64.0f, it.y = captViewHeight() - 64.0f
+            
+            if gamedata.show_fountain {
+                // Do fountain collision
+                f_cx float = captViewWidth() / 2.0f
+                f_cy float = captViewHeight() / 2.0f
+                
+                if it.x >= f_cx - 28.0f - 32.0f && it.x <= f_cx + 28.0f {
+                    if it.y > f_cy - 8.0f && it.y < f_cy + 8.0f {
+                        if fabs(f_cy + 8.0f - it.y) <= fabs(f_cy - 8.0f - it.y) {
+                            it.y = f_cy + 8.0f
+                        } else {
+                            it.y = f_cy - 8.0f
+                        }
+                    }
+                }
+            }
+            
+            unless it.attacking() || b, it.direction = dx > 0.1f ? 1 : dx < 0.1f ? -1 : it.direction
+            it.changeTargetArea(b ? it.old_angle : angle)
+            unless b, it.old_angle = angle
+            it.movement_angle = angle
+        }
+        
+        if a, it.attack()
+        it.update()
+        
+        if d && it.d_lock == false, it.dropWeapon()
+        
+        it.a_lock = a
+        it.b_lock = b
+        it.d_lock = d
+    }
+    
+    each dw DroppedWeapon in gamedata.dropped_weapons {
+        remove_dw bool = false
+        dw.getCenter(undef dw_cx float, undef dw_cy float)
+        
+        each Player in gamedata.players {
+            if it.dead(), continue
+            
+            it.getCenter(undef p_cx float, undef p_cy float)
+            
+            x_diff float = dw_cx - p_cx
+            y_diff float = dw_cy - p_cy
+            distance float = sqrtf(x_diff * x_diff + y_diff * y_diff)
+            if distance < 16.0f && dw.canByPickedUp(it.id) {
+                if it.weapon.kind != WeaponKind::NONE, continue
+                it.weapon = weapon(dw.kind)
+                remove_dw = true; break
+            }
+        }
+        
+        if dw.when + 30.0 < glfwGetTime() && !dw.persistent, remove_dw = true
+        if remove_dw, gamedata.dropped_weapons.remove(idx--)
+    }
+    
+    if gamedata.has_collectable, each Player in gamedata.players {
+        it.getCenter(undef p_cx float, undef p_cy float)
+        x_diff float = gamedata.collectable.x - p_cx
+        y_diff float = gamedata.collectable.y - p_cy
+        distance float = sqrtf(x_diff * x_diff + y_diff * y_diff)
+        if distance < 32.0f, switch gamedata.adventure_objective.kind {
+        case AdventureObjectiveKind::FLOWER
+            gamedata.adventure_objective.counter++
+            gamedata.has_collectable = false
+            gamedata.message_string = "You got a flower!"
+            break
+        }
+    }
+    
+    each Enemy in gamedata.enemies {
+        it.update()
+    }
+    
+    each Blood in gamedata.blood {
+        it.update()
+        if --it.lifetime == 0, gamedata.blood.remove(idx--)
+    }
+    
+    each Crack in gamedata.cracks {
+        it.update()
+    }
+    
+    each Door in gamedata.doors {
+        it.update()
+    }
+    
+    everyone_in_door bool = true
+    each Player in gamedata.players, unless it.in_door || it.dead() {
+        everyone_in_door = false
+        break
+    }
+    
+    if everyone_in_door && gamedata.players.length != 0 {
+        max_count usize = 0
+        chosen_door *Door = null
+        each Door in gamedata.doors {
+            if it.count > max_count {
+                chosen_door = &it
+                max_count = it.count
+            }
+        }
+        
+        if chosen_door != null, chosen_door.goThrough()
+    }
+    
+    gamedata.objectiveEventOnUpdate()
+    
+    if gamedata.room_objective.completed() {
+        gamedata.room_objective.kind = RoomObjectiveKind::NONE
+        current_room *Room = gamedata.findCurrentRoom()
+        if current_room, current_room.room_objective = RoomObjectiveKind::NONE
+    }
+    if gamedata.adventure_objective.completed() {
+        gamedata.adventure_objective.kind = AdventureObjectiveKind::NONE
+    }
+}
+
+func onKey(key, scancode, action, mods int) {
+    if key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS {
+        gamedata.enable_keyboard = !gamedata.enable_keyboard
+        
+        if gamedata.enable_keyboard {
+            index int = gamedata.players.find(0, false)
+            if index == -1, gamedata.addPlayer(0)
+        } else {
+            index int = gamedata.players.find(0, false)
+            if index != -1, gamedata.players.remove(index as usize)
+        }
+    }
+    
+    /*
+    player_index int = gamedata.players.find(0, false)
+    unless gamedata.enable_keyboard && player_index != -1, return
+    player *Player = gamedata.players.getPointer(player_index)
+    */
+}
+
+func onDraw {
+    captClearColor(captColor(0.3f, 0.3f, 0.3f))
+    
+    xStart float = 0.0f
+    yStart float = 0.0f
+    x float = xStart
+    y float = yStart
+    w float = captViewWidth() as float
+    h float = captViewHeight() as float
+    
+    until x > w {
+        until y > h {
+            should_be_wall bool = x == xStart || y == yStart || x + 48.0f >= w || y + 48.0f >= h
+            if should_be_wall {
+                render(&gamedata.floor_model, textures.wall1, x, y, getDepthFromY(y + 48.0f))
+            } else {
+                captDrawTextureUsingModel(gamedata.floor_model, textures.floor, x, y)
+            }
+            
+            y += 48.0f
+        }
+        y = yStart
+       x += 48.0f
+    }
+    
+    if gamedata.room_objective.kind == RoomObjectiveKind::NONE && gamedata.adventure_objective.kind != AdventureObjectiveKind::MECHANIC {
+        each Door in gamedata.doors {
+            render(&gamedata.floor_model, it.getTexture(), it.x, it.y, getDepthFromY(it.y + 48.0f + 0.001f))
+        }
+    }
+    
+    if gamedata.show_fountain {
+        render(&gamedata.model, (2.0 * glfwGetTime()) as int % 2 == 0 ? textures.fountain : textures.fountain_flow, captViewWidth() / 2.0f - 32.0f, captViewHeight() / 2.0f - 32.0f, getDepthFromY(captViewHeight() / 2.0f + 32.0f))
+    }
+    
+    each Crack in gamedata.cracks, it.draw()
+    each Player in gamedata.players, it.drawAttackArea()
+    
+    each DroppedWeapon in gamedata.dropped_weapons {
+        it.draw()
+    }
+    
+    if gamedata.has_collectable {
+        gamedata.collectable.draw()
+    }
+    
+    each Enemy in gamedata.enemies {
+        it.draw()
+    }
+    
+    each Player in gamedata.players {
+        it.draw()
+    }
+    
+    each Blood in gamedata.blood {
+        it.draw()
+    }
+    
+    gamedata.render_queue.render()
+    
+    if gamedata.room_objective.kind == RoomObjectiveKind::NONE && gamedata.adventure_objective.kind != AdventureObjectiveKind::MECHANIC {
+        each Door in gamedata.doors {
+            if idx < 4 && it.count != 0 {
+                if gamedata.door_count_has_text[idx], gamedata.door_count_text[idx].destroy()
+                gamedata.door_count_text[idx] = text("%" % it.count, 10.0)
+                
+                count_x float = it.x + 24.0f - 3.0f
+                count_y float = it.y + 24.0f - 4.0f
+                //captDrawTexture(textures.black, count_x - 8.0f, count_y - 8.0f, 24.0f, 24.0f)
+                gamedata.door_count_text[idx].draw(count_x, count_y)
+            }
+        }
+    }
+    
+    if gamedata.room_objective.kind != RoomObjectiveKind::NONE || gamedata.adventure_objective.kind != AdventureObjectiveKind::NONE {
+        string String = gamedata.room_objective.string()
+        string = string.length == 0 ? gamedata.adventure_objective.string() : string + "\n" + gamedata.adventure_objective.string()
+        
+        if gamedata.has_objective_text, gamedata.objective_text.destroy()
+        gamedata.objective_text = text(string, 8.0f)
+        gamedata.has_objective_text = true
+        
+        extra float = gamedata.room_objective.kind != RoomObjectiveKind::NONE && gamedata.adventure_objective.kind != AdventureObjectiveKind::NONE ? 12.0f : 0.0f
+        captDrawTexture(textures.black, 8.0f, 8.0f, longestLength(string) as float * 8.0f * 6.0f / 7.0f + 8.0f, 16.0f + extra)
+        gamedata.objective_text.draw(12.0f, 12.0f)
+    }
+    
+    unless gamedata.message_string == "" {
+        if gamedata.has_message_text, gamedata.message_text.destroy()
+        gamedata.message_text = text(gamedata.message_string + "\n\n4 - OK", 14.0f)
+        gamedata.has_message_text = true
+        
+        captDrawTexture(textures.black, captViewWidth() / 2.0f - 256.0f, captViewHeight() / 2.0f - 128.0f, 512.0f, 256.0f)
+        gamedata.message_text.draw(captViewWidth() / 2.0f - 256.0f + 10.0f, captViewHeight() / 2.0f - 128.0f + 10.0f)
+    }
+    
+    unless gamedata.recruitment_string == "" {
+        if gamedata.has_recruitment_text, gamedata.recruitment_text.destroy()
+        gamedata.recruitment_text = text(gamedata.recruitment_string + "\n\n4 - OK\n3 - CANCEL", 14.0f)
+        gamedata.has_recruitment_text = true
+        
+        captDrawTexture(textures.black, captViewWidth() / 2.0f - 256.0f, captViewHeight() / 2.0f - 128.0f, 512.0f, 256.0f)
+        gamedata.recruitment_text.draw(captViewWidth() / 2.0f - 256.0f + 10.0f, captViewHeight() / 2.0f - 128.0f + 10.0f)
+    }
+}

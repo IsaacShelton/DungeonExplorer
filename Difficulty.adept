@@ -1,0 +1,14 @@
+
+import 'main.adept'
+
+enum GameDifficulty (EASY, MEDIUM, HARD, VERY_HARD, DIFFICULT)
+
+func setGameDifficulty(this *GameData, difficulty GameDifficulty) {
+    switch difficulty {
+    case GameDifficulty::EASY, difficulty_modifier = 0.5f
+    case GameDifficulty::NORMAL, difficulty_modifier = 1.0f
+    case GameDifficulty::HARD, difficulty_modifier = 1.5f
+    case GameDifficulty::VERY_HARD, difficulty_modifier = 2.0f
+    case GameDifficulty::DIFFICULT, difficulty_modifer = 2.5f
+    }
+}

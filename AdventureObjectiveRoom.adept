@@ -1,0 +1,40 @@
+
+import 'main.adept'
+
+func generateAdventureObjectiveRoom(to_direction RoomDirection) *Room {
+    new_room *Room = null
+    
+    switch rand() % 4 {
+    case 0
+        // FLOWER
+        new_room = generateBlankRoom(to_direction)
+        generateRoomExits(new_room)
+        generateRoomEntrances(new_room, to_direction)
+        new_room.adventure_objective = AdventureObjectiveKind::FLOWER
+        return new_room
+    case 1
+        // WHITE_RAT
+        new_room = generateBlankRoom(to_direction)
+        generateRoomExits(new_room)
+        generateRoomEntrances(new_room, to_direction)
+        new_room.adventure_objective = AdventureObjectiveKind::WHITE_RAT
+        return new_room
+    case 2
+        // MAGICIAN
+        new_room = generateBlankRoom(to_direction)
+        generateRoomExits(new_room)
+        generateRoomEntrances(new_room, to_direction)
+        new_room.adventure_objective = AdventureObjectiveKind::MAGICIAN
+        return new_room
+    case 3
+        // MECHANIC
+        new_room = generateBlankRoom(to_direction)
+        generateRoomExits(new_room)
+        generateRoomEntrances(new_room, to_direction)
+        new_room.adventure_objective = AdventureObjectiveKind::MECHANIC
+        return new_room
+    }
+    
+    printf('INTERNAL ERROR: generateRoomObjectiveRoom() switch out of bounds\n')
+    return generateNormalRoom(to_direction)
+}

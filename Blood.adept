@@ -1,0 +1,32 @@
+
+import 'main.adept'
+
+packed struct Blood (texture CaptTexture, x, y float, vx, vy float, lifetime int) {
+    func update {
+        this.x += this.vx
+        this.y += this.vy
+        this.vx /= 2.0f
+        this.vy /= 2.0f
+    }
+    
+    func draw {
+        render(&gamedata.blood_model, this.texture, this.x - 16.0f, this.y - 16.0f, getDepthFromY(this.y + 16.0f))
+    }
+}
+
+func blood(x, y float) Blood {
+    b Blood
+    b.texture = (&textures.blood1 as *CaptTexture)[rand() % 9]
+    b.x = x
+    b.y = y
+    b.vx = cast float (rand() % 5 + 3) * cast float (rand() % 2 == 0 ? 1 : -1)
+    b.vy = cast float (rand() % 5 + 3) * cast float (rand() % 2 == 0 ? 1 : -1)
+    b.lifetime = 15
+    return b
+}
+
+func bleed(x, y float) {
+    // BLOOD LIMIT: if gamedata.blood.length > 1000, return
+    count usize = rand() as usize % 4 + 3
+    repeat count, gamedata.blood.add(blood(x, y))
+}

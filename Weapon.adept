@@ -1,0 +1,48 @@
+
+import 'main.adept'
+
+// Negative duration represents cooldown
+
+packed struct Weapon (kind WeaponKind, duration int, data *WeaponData) {
+    func attack successful {
+        if this.kind == WeaponKind::NONE || this.duration != 0, return false
+        this.duration = this.data.duration
+        return true
+    }
+    
+    func update {
+        if this.kind == WeaponKind::NONE, return
+        
+        if this.duration < 0 {
+            // Update cooldown
+            this.duration++
+        }
+        
+        if this.duration == 1 {
+            // Set cooldown
+            this.duration = -1 * this.data.cooldown
+        }
+        
+        if this.duration > 0 {
+            // Update duration
+            this.duration--
+        }
+    }
+    
+    func draw(x, y float, direction int) {
+        if this.kind == WeaponKind::NONE, return
+        render(direction >= 0 ? &gamedata.model : &gamedata.model_r, this.getTexture(), x - 16.0f, y - 16.0f, getDepthFromY(y + 32.0f))
+    }
+    
+    func getTexture CaptTexture {
+        return this.duration <= 0 ? this.data.idle : this.data.attack
+    }
+}
+
+func weapon(kind WeaponKind) Weapon {
+    w Weapon
+    w.kind = kind
+    w.duration = 0
+    w.data = findWeaponData(kind)
+    return w
+}
